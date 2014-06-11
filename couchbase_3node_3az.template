@@ -1,0 +1,119 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Couchbase Server cluster: 3 nodes across 3 AZs",
+
+  "Parameters" : {
+    "InstanceType" : {
+      "Description" : "Couchbase Server EC2 instance type",
+      "Type" : "String",
+      "Default" : "r3.4xlarge",
+      "AllowedValues" : [ "r3.8xlarge", "r3.4xlarge", "r3.2xlarge", "r3.xlarge", "r3.large" ],
+      "ConstraintDescription": "Must be an R3 EC2 instance type"
+    },
+    "KeyName" : {
+      "Description" : "Name of an existing EC2 Key Pair to enable SSH access to the instances",
+      "Type" : "String"
+    },
+    "VpcId" : {
+      "Type" : "String",
+      "Description" : "VPC ID of an existing Virtual Private Cloud (VPC) where you want to deploy the Couchbase Server cluster"
+    },
+    "Subnets" : {
+      "Type" : "CommaDelimitedList",
+      "Description" : "Comma-separated list of Subnet IDs in your Virtual Private Cloud (VPC) where you want to deploy Couchbase Server instances"
+    },
+    "AZs" : {
+      "Type" : "CommaDelimitedList",
+      "Description" : "Comma-separated list of Availability Zones for your Virtual Private Cloud (VPC) where you want to deploy Couchase Server instances"
+    },
+    "InstanceCount" : {
+      "Description" : "Number of EC2 instances to launch",
+      "Type" : "Number",
+      "Default" : "3"
+    },
+    "BastionSecurityGroup" : {
+      "Description" : "Security Group ID that your bastion host (jump box) is in",
+      "Type" : "String"
+    }
+  },
+  "Mappings" : {
+      "RegionMap" : {
+          "us-east-1" : { "AMI" : "ami-978d91fe" },
+          "us-west-2" : { "AMI" : "ami-383a5008" },
+          "eu-west-1" : { "AMI" : "ami-4b18e33c" }
+      }
+  },
+  "Resources" : {
+    "CouchbaseServerGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones" : { "Ref" : "AZs" },
+        "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+        "VPCZoneIdentifier" : { "Ref" : "Subnets" },
+        "MinSize" : { "Ref" : "InstanceCount" },
+        "MaxSize" : { "Ref" : "InstanceCount" },
+        "Tags" : [ { "Key" : "Name", "Value" : "Couchbase", "PropagateAtLaunch" : "true" } ]
+      }
+    },
+    "LaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "KeyName" : { "Ref" : "KeyName" },
+        "ImageId" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "AMI" ] },
+        "SecurityGroups" : [ { "Ref" : "CouchbaseSGBase" } ],
+        "InstanceType" : { "Ref" : "InstanceType" },
+        "BlockDeviceMappings" : [ {
+          "DeviceName"  : "/dev/xvdc",
+          "VirtualName" : "ephemeral0"
+        } ],
+        "UserData": { "Fn::Base64" : { "Fn::Join" : ["", [
+          "#!/bin/bash -v\n",
+          "# install security updates\n",
+          "yum -y update --security\n",
+          "# Partition, format and setup the mountpoint for the ephemeral volume\n",
+          "parted -s -a optimal /dev/xvdc mklabel gpt -- mkpart primary ext4 1 -1\n",
+          "mkfs.ext4 /dev/xvdc1\n",
+          "mkdir /mnt/couchbasedata\n",
+          "echo \"/dev/xvdc1 /mnt/couchbasedata ext4 user 0 0\" >> /etc/fstab\n",
+          "mount /mnt/couchbasedata\n"
+        ]]}}
+      }
+    },
+    "CouchbaseSGBase" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable SSH access from bastion hosts, and Couchbase Server ports from other Couchbase nodes",
+        "VpcId" : { "Ref" : "VpcId" },
+        "SecurityGroupIngress" : [ 
+          { "IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "SourceSecurityGroupId" : { "Ref" : "BastionSecurityGroup" } },
+          { "IpProtocol" : "tcp", "FromPort" : "8091", "ToPort" : "8091", "SourceSecurityGroupId" : { "Ref" : "BastionSecurityGroup" } }
+        ]
+      }
+    },
+    "CouchbaseSGBaseIngress1" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : { 
+        "GroupId" : { "Ref" : "CouchbaseSGBase" }, "IpProtocol" : "tcp", "FromPort" : "8091", "ToPort" : "8092", "SourceSecurityGroupId" : { "Ref" : "CouchbaseSGBase" } 
+      }
+    },
+    "CouchbaseSGBaseIngress2" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : { 
+        "GroupId" : { "Ref" : "CouchbaseSGBase" }, "IpProtocol" : "tcp", "FromPort" : "4369", "ToPort" : "4369", "SourceSecurityGroupId" : { "Ref" : "CouchbaseSGBase" }
+      }
+    },
+    "CouchbaseSGBaseIngress3" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : { 
+        "GroupId" : { "Ref" : "CouchbaseSGBase" }, "IpProtocol" : "tcp", "FromPort" : "11210", "ToPort" : "11210", "SourceSecurityGroupId" : { "Ref" : "CouchbaseSGBase" }
+      }
+    },
+    "CouchbaseSGBaseIngress4" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : { 
+        "GroupId" : { "Ref" : "CouchbaseSGBase" }, "IpProtocol" : "tcp", "FromPort" : "21100", "ToPort" : "21199", "SourceSecurityGroupId" : { "Ref" : "CouchbaseSGBase" }
+      }
+    }
+  }
+}

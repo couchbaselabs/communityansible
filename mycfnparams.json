@@ -1,0 +1,30 @@
+[
+  {
+    "ParameterKey" : "InstanceType",
+    "ParameterValue" : ""
+  },
+  {
+    "ParameterKey" : "KeyName",
+    "ParameterValue" : ""
+  },
+  {
+    "ParameterKey" : "VpcId",
+    "ParameterValue" : ""
+  },
+  {
+    "ParameterKey" : "Subnets",
+    "ParameterValue" : ""
+  },
+  {
+    "ParameterKey" : "AZs",
+    "ParameterValue" : ""
+  },
+  {
+    "ParameterKey" : "InstanceCount",
+    "ParameterValue" : ""
+  },
+  {
+    "ParameterKey" : "BastionSecurityGroup",
+    "ParameterValue" : ""
+  }
+]

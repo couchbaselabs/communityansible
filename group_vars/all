@@ -1,0 +1,11 @@
+# Adminisrator user and password
+admin_user: Administrator
+admin_password: <PASSWORD> 
+
+# ram quota for the cluster
+cluster_ram_quota: 75000
+
+# bucket and replicas
+bucket_name: mydata
+bucket_ram_quota: 25000
+num_replicas: 2
